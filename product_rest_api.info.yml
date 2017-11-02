@@ -1,0 +1,5 @@
+name: product rest api
+type: module
+description: Rest API for Product Entity
+core: 8.x
+package: Custom

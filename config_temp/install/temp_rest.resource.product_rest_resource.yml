@@ -1,0 +1,27 @@
+uuid: b32f6afb-d504-43af-9fb0-26cb1466e255
+langcode: en
+status: true
+dependencies:
+  module:
+    - basic_auth
+    - hal
+    - node
+    - product_rest_api
+    - serialization
+    - user
+id: product_rest_resource
+plugin_id: 'product_rest_resource'
+granularity: resource
+configuration:
+  methods:
+    - GET
+    - POST
+    - PATCH
+    - DELETE
+  formats:
+    - hal_json
+    - json
+    - xml
+  authentication:
+    - basic_auth
+    - cookie
