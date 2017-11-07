@@ -23,6 +23,30 @@ function product_rest_api_help($route_name, RouteMatchInterface $route_match) {
   }
 }
 
+// function product_rest_api_cron() {
+//
+//   // Long-running operation example, leveraging a queue:
+//   // Queue news feeds for updates once their refresh interval has elapsed.
+//   $queue = \Drupal::queue('products_consumer');
+//   $ids = \Drupal::entityManager()->getStorage('products')->getFeedIdsToRefresh();
+//   foreach (Feed::loadMultiple($ids) as $feed) {
+//     if ($queue->createItem($feed)) {
+//       // Add timestamp to avoid queueing item more than once.
+//       $feed->setQueuedTime(REQUEST_TIME);
+//       $feed->save();
+//     }
+//   }
+//   $ids = \Drupal::entityQuery('products')
+//     ->condition('queued', REQUEST_TIME - (3600 * 6), '<')
+//     ->execute();
+//   if ($ids) {
+//     $feeds = Feed::loadMultiple($ids);
+//     foreach ($feeds as $feed) {
+//       $feed->setQueuedTime(0);
+//       $feed->save();
+//     }
+//   }
+// }
 /**
  * Implements hook_theme().
  */

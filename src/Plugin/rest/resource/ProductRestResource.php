@@ -16,11 +16,9 @@ use Drupal\products\Entity\Products;
  * @RestResource(
  *   id = "product_rest_resource",
  *   label = @Translation("Product rest resource"),
- *   serialization_class = "Drupal\products\Entity\Products",
  *   uri_paths = {
- *     "canonical" = "/products/{products}",
- *      "defaults" = {"products" = 1},
- *     "http://drupal.org/link-relations/create" = "/entity/products"
+ *     "canonical" = "/api/products/{products}",
+ *     "https://www.drupal.org/link-relations/create" = "/api/products"
  *   }
  * )
  */
@@ -141,20 +139,27 @@ class ProductRestResource extends ResourceBase {
    * @throws \Symfony\Component\HttpKernel\Exception\HttpException
    *   Throws exception expected.
    */
-  // public function post($name=NULL, $description=NULL, $price=NULL) {
-  // public function post(array $data=[]) {
-     public function post() {
+    // public function post(array $data=[]) {
+    //  public function post($data, $node_type) {
+     public function post($data) {
 
     // You must to implement the logic of your REST Resource here.
     // Use current user after pass authentication to validate access.
     if (!$this->currentUser->hasPermission('access content')) {
        throw new AccessDeniedHttpException();
     }
+      $name = $data["name"];
+      $description = $data["description"];
+      $price = $data["price"];
       $entity = Products::create();
       $entity->setName($name);
       $entity->setDescription($description);
-      $entity->save();
-
+      $entity->setPrice($price);
+      try {
+        $entity->save();
+     }catch(EntityStorageException $e) {
+       return new ResourceResponse(["message"=>"Problem on Entity save"]);
+    }
     $response = ["message"=>"New product added"];
     return new ResourceResponse($response);
   }
@@ -175,7 +180,7 @@ class ProductRestResource extends ResourceBase {
       throw new AccessDeniedHttpException();
     }
     $id = trim($id);
-    $response = ["message"=>"Product with id ".$id." doesnt exist"];
+    $response = ["message"=>"Product with doesnt exist"];
     if(!empty($id)) {
       $current_user = \Drupal::currentUser()->id();
       $ent_ret = \Drupal::entityQuery('products','AND')
@@ -190,7 +195,7 @@ class ProductRestResource extends ResourceBase {
         return new ResourceResponse(["message"=>"Problem on load entity"]);
     }
       $storage_handler->delete($entities);
-      $response = ["message"=>"Product with id ".$id." was deleted!"];
+      $response = ["message"=>"Product with id was deleted!"];
     }
     return new ResourceResponse($response);
   }
@@ -203,14 +208,38 @@ class ProductRestResource extends ResourceBase {
    * @throws \Symfony\Component\HttpKernel\Exception\HttpException
    *   Throws exception expected.
    */
-  public function patch(array $data=[]) {
+  public function patch($id=NULL, $data=NULL) {
 
     // You must to implement the logic of your REST Resource here.
     // Use current user after pass authentication to validate access.
     if (!$this->currentUser->hasPermission('access content')) {
       throw new AccessDeniedHttpException();
     }
-
+    $id = trim($id);
+    $response = ["message"=>"Product not found"];
+    if(!empty($id)) {
+      $current_user=\Drupal::currentUser()->id();
+      $ent_ret = \Drupal::entityQuery('products', 'AND')
+        ->condition('user_id' , $current_user)
+        ->condition('id', $id)
+        ->execute();
+      try {
+        $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
+        $entity = $storage_handler->loadMultiple($ent_ret);
+        $product = $entity[$id];
+        $product->setName($data["name"])
+          ->setDescription($data["description"])
+          ->setPrice($data["price"]);
+        $product->save();
+      }
+      catch(InvalidPluginDefinitionException  $ex) {
+        return new ResourceResponse(["message"=>"Problem on Updating entity/InvalidPluginDefinitionException"]);
+      }
+      catch(EntityStorageException $ex) {
+        return new ResourceResponse(["message"=>"Problem on Updating entity/EntityStorageException"]);
+      }
+      $response = ["message"=>"Product Updated"];
+    }
     return new ResourceResponse("Implement REST State PATCH!");
   }
 
