@@ -23,7 +23,31 @@ function product_rest_api_help($route_name, RouteMatchInterface $route_match) {
   }
 }
 
-// function product_rest_api_cron() {
+function product_rest_api_cron() {
+
+   //hold the time that cron run last time
+   $expires = \Drupal::state()->get('product_rest_api.cron_last_run',REQUEST_TIME);
+   try {
+     $client = \Drupal::httpClient();
+     $response = $client->get('http://chroniclingamerica.loc.gov/awardees.json', ['headers' => [
+        'Accept'     => 'application/json',
+        'http_errors' => false,
+        ]
+    ]);
+     //  $request = $client->createRequest('GET', 'http://chroniclingamerica.loc.gov/newspapers.json');
+      $status =  $response->getStatusCode();
+      $reason =  $response->getReasonPhrase();
+      $header1 = $response->getHeader('Content-Type');
+      $header2 = $response->getHeader('Last-Modified');
+      if($status==200 && $reason=="OK") {
+        $properties = json_decode($response->getBody()->getContents(), true);
+        // $response->getBody()->seek(count($properties));
+      }
+   }catch(RequestException $ex) {
+     \Drupal::logger('product_rest_api')->notice($ex);
+   }catch(InvalidArgumentException $ex) {
+     \Drupal::logger('product_rest_api')->notice($ex);
+   }
 //
 //   // Long-running operation example, leveraging a queue:
 //   // Queue news feeds for updates once their refresh interval has elapsed.
@@ -46,7 +70,7 @@ function product_rest_api_help($route_name, RouteMatchInterface $route_match) {
 //       $feed->save();
 //     }
 //   }
-// }
+}
 /**
  * Implements hook_theme().
  */
