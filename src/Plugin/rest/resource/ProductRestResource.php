@@ -7,6 +7,7 @@ use Drupal\rest\Plugin\ResourceBase;
 use Drupal\rest\ResourceResponse;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Psr\Log\LoggerInterface;
 use Drupal\products\Entity\Products;
 
@@ -117,12 +118,9 @@ class ProductRestResource extends ResourceBase {
         );
       }
     } else {
-        throw NotFoundHttpException('No products found');
+        throw new NotFoundHttpException('No products found');
+        // return new ResourceResponse(["message"=>"No entries found!"]);
     }
-    // $output = $this->serializer->serialize($products, 'json');
-    // $response = new ResourceResponse($output);
-    // $response->addCacheableDependency($output);
-    // $response = ['message' => 'Hello, this is a rest service'];
     $response = new ResourceResponse($products);
     $response->addCacheableDependency($products);
     return $response;

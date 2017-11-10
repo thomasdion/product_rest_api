@@ -1,0 +1,8 @@
+
+product_rest_api.rest_consume_controller_api:
+  path: '/product_rest_api/api'
+  defaults:
+    _controller: '\Drupal\product_rest_api\Controller\RestConsumeController::api'
+    _title: 'Rest Consumer Controller'
+  requirements:
+    _permission: 'access content'
