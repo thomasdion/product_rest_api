@@ -10,6 +10,8 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Psr\Log\LoggerInterface;
 use Drupal\products\Entity\Products;
+use Drupal\Core\Entity\EntityStorageException;
+use Drupal\rest\ModifiedResourceResponse;
 
 /**
  * Provides a resource to get view modes by entity and bundle.
@@ -155,11 +157,12 @@ class ProductRestResource extends ResourceBase {
       $entity->setPrice($price);
       try {
         $entity->save();
-     }catch(EntityStorageException $e) {
-       return new ResourceResponse(["message"=>"Problem on Entity save"]);
+     }catch(EntityStorageException $ex) {
+      //  \Drupal::logger('product_rest_api')->error($ex);
+       return new ResourceResponse(["message"=>"Problem on Entity save"],500);
     }
     $response = ["message"=>"New product added"];
-    return new ResourceResponse($response);
+    return new ResourceResponse($response, 204);
   }
 
   /**
@@ -178,24 +181,33 @@ class ProductRestResource extends ResourceBase {
       throw new AccessDeniedHttpException();
     }
     $id = trim($id);
-    $response = ["message"=>"Product with doesnt exist"];
+    // $response = ["message"=>"Product with doesnt exist"];
     if(!empty($id)) {
       $current_user = \Drupal::currentUser()->id();
       $ent_ret = \Drupal::entityQuery('products','AND')
                 ->condition('user_id', $current_user)
                 ->condition('id', $id)
                 ->execute();
+      if(empty($ent_ret)) {
+        // \Drupal::logger('product_rest_api')->error($ex);
+          //  throw new NotFoundHttpException(NULL, 404);
+           return new ModifiedResourceResponse(NULL, 404);
+        }
       try {
         $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
         // $storage_handler = \Drupal::EntityTypeManagerInterface()->getStorage('products');
         $entities = $storage_handler->loadMultiple($ent_ret);
-    } catch( InvalidPluginDefinitionException $e) {
-        return new ResourceResponse(["message"=>"Problem on load entity"]);
+        $storage_handler->delete($entities);
+        // $response = ["message"=>"Product with id was deleted!"];
+    } catch( InvalidPluginDefinitionException $ex) {
+        // \Drupal::logger('product_rest_api')->error($ex);
+        return new ResourceResponse(["message"=>"Product not Found"], 500);
+    } catch ( EntityStorageException $ex ) {
+        // \Drupal::logger('product_rest_api')->error($ex);
+        return new ResourceResponse(["message"=>"Product not Found"], 500);
     }
-      $storage_handler->delete($entities);
-      $response = ["message"=>"Product with id was deleted!"];
     }
-    return new ResourceResponse($response);
+    return new ModifiedResourceResponse(NULL, 204);
   }
 
   /**
@@ -221,6 +233,10 @@ class ProductRestResource extends ResourceBase {
         ->condition('user_id' , $current_user)
         ->condition('id', $id)
         ->execute();
+      if(empty($ent_ret)) {
+          // throw new NotFoundHttpException("Product not found");
+          return new ResourceResponse(["message"=>"Product not Found"], 404);
+      }
       try {
         $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
         $entity = $storage_handler->loadMultiple($ent_ret);
@@ -231,14 +247,16 @@ class ProductRestResource extends ResourceBase {
         $product->save();
       }
       catch(InvalidPluginDefinitionException  $ex) {
-        return new ResourceResponse(["message"=>"Problem on Updating entity/InvalidPluginDefinitionException"]);
+        // \Drupal::logger('product_rest_api')->error($ex);
+        return new ResourceResponse(["message"=>"Product not Found"], 500);
       }
       catch(EntityStorageException $ex) {
-        return new ResourceResponse(["message"=>"Problem on Updating entity/EntityStorageException"]);
+        // \Drupal::logger('product_rest_api')->error($ex);
+        return new ResourceResponse(["message"=>"Product not Found"], 500);
       }
       $response = ["message"=>"Product Updated"];
     }
-    return new ResourceResponse("Implement REST State PATCH!");
+    return new ResourceResponse($response, 200);
   }
 
 }

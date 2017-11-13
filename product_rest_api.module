@@ -46,7 +46,7 @@ function product_rest_api_cron() {
       $last_modified = $tempstore->get('last_modified');
       //set new value in session variable
       $tempstore->set('last_modified', $modified);
-      if($status==200 && $reason=="OK" && ($modified >= $last_modified)) {
+      if($status==200 && $reason=="OK" && ($modified > $last_modified)) {
         $current_user = \Drupal::currentUser()->id();
         //Refresh entity by deleting all entries and*
         $ent_ret = \Drupal::entityQuery('award_entity','AND')
