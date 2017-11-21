@@ -189,7 +189,7 @@ class ProductRestResource extends ResourceBase {
                 ->condition('id', $id)
                 ->execute();
       if(empty($ent_ret)) {
-        // \Drupal::logger('product_rest_api')->error($ex);
+          // \Drupal::logger('product_rest_api')->error($ex);
           //  throw new NotFoundHttpException(NULL, 404);
            return new ModifiedResourceResponse(NULL, 404);
         }
@@ -234,6 +234,7 @@ class ProductRestResource extends ResourceBase {
         ->condition('id', $id)
         ->execute();
       if(empty($ent_ret)) {
+          //  \Drupal::logger('product_rest_api')->notice($ex);
           // throw new NotFoundHttpException("Product not found");
           return new ResourceResponse(["message"=>"Product not Found"], 404);
       }

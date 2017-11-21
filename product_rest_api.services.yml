@@ -1,0 +1,8 @@
+parameters:
+  public.apis:
+    - {name: 'awardees', url: 'http://chroniclingamerica.loc.gov/awardees.json', Accept: 'application/json'}
+    - {name: 'breeds', url: 'https://dog.ceo/dog-api/', Accept: 'application/json'}
+services:
+  product_rest_api.rest_consume:
+    class: Drupal\product_rest_api\Service\RestConsumeService
+    arguments: ["%public.apis%"]

@@ -8,6 +8,10 @@
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\product_rest_api\Controller\RestConsumeController;
 use Drupal\award\Entity\AwardEntity;
+use Drupal\award\Entity\AwardEntityInterface;
+
+use Drupal\award\AwardEntityAccessControlHandler;
+use Drupal\product_rest_api\Servic\RestConsumeService;
 /**
  * Implements hook_help().
  */
@@ -28,16 +32,12 @@ function product_rest_api_cron() {
 
    //hold the time that cron run last time
   //$expires = \Drupal::state()->get('product_rest_api.cron_last_run',REQUEST_TIME);
-   //load session varables
+
+  //load session varables
    $tempstore = \Drupal::service('user.private_tempstore')->get('product_rest_api');
    try {
-     $client = \Drupal::httpClient();
-     $response = $client->get('http://chroniclingamerica.loc.gov/awardees.json', ['headers' => [
-        'Accept'     => 'application/json',
-        'http_errors' => false,
-        ]
-    ]);
-     //  $request = $client->createRequest('GET', 'http://chroniclingamerica.loc.gov/newspapers.json');
+      $rest = \Drupal::service('product_rest_api.rest_consume');
+      $response = $rest->consume('awardees');
       $status =  $response->getStatusCode();
       $reason =  $response->getReasonPhrase();
       // $header1 = $response->getHeader('Content-Type');
@@ -46,59 +46,23 @@ function product_rest_api_cron() {
       $last_modified = $tempstore->get('last_modified');
       //set new value in session variable
       $tempstore->set('last_modified', $modified);
-      if($status==200 && $reason=="OK" && ($modified > $last_modified)) {
-        $current_user = \Drupal::currentUser()->id();
-        //Refresh entity by deleting all entries and*
-        $ent_ret = \Drupal::entityQuery('award_entity','AND')
-                  ->condition('user_id', $current_user)
-                  ->execute();
-        entity_delete_multiple('award_entity', $ent_ret);
-        //inserting the new entities
-        $data = json_decode($response->getBody()->getContents(), true);
-        $awards = $data["awardees"];
-        foreach($awards as $award) {
-          $entity = AwardEntity::create();
-            $name = $award["name"];
-            $url = $award["url"];
-            $entity->setName($award["name"]);
-            $entity->setUrl($award["url"]);
-          $entity->save();
-        }
-        // $restController = new RestConsumeController();
-        // $restController->api($properties);
-        // $response->getBody()->seek(count($properties));
+      if($status==200 && $reason=="OK" && ($modified >= $last_modified)) {
+         $current_user = \Drupal::currentUser()->id();
+         // // Refresh entity by deleting all entries and*
+         AwardEntity::deleteAll($current_user);
+        // inserting the new entities
+         $data = json_decode($response->getBody()->getContents(), true);
+         AwardEntity::insertAll($data);
       }
       $tempstore->set('last_modifie', $modified);
    }catch(RequestException $ex) {
-     \Drupal::logger('product_rest_api')->notice($ex);
+     \Drupal::logger('product_rest_api')->error($ex);
    }catch(InvalidArgumentException $ex) {
-     \Drupal::logger('product_rest_api')->notice($ex);
+     \Drupal::logger('product_rest_api')->error($ex);
    }
    catch(EntityStorageException $ex) {
-     \Drupal::logger('product_rest_api')->notice($ex);
+     \Drupal::logger('product_rest_api')->error($ex);
    }
-//
-//   // Long-running operation example, leveraging a queue:
-//   // Queue news feeds for updates once their refresh interval has elapsed.
-//   $queue = \Drupal::queue('products_consumer');
-//   $ids = \Drupal::entityManager()->getStorage('products')->getFeedIdsToRefresh();
-//   foreach (Feed::loadMultiple($ids) as $feed) {
-//     if ($queue->createItem($feed)) {
-//       // Add timestamp to avoid queueing item more than once.
-//       $feed->setQueuedTime(REQUEST_TIME);
-//       $feed->save();
-//     }
-//   }
-//   $ids = \Drupal::entityQuery('products')
-//     ->condition('queued', REQUEST_TIME - (3600 * 6), '<')
-//     ->execute();
-//   if ($ids) {
-//     $feeds = Feed::loadMultiple($ids);
-//     foreach ($feeds as $feed) {
-//       $feed->setQueuedTime(0);
-//       $feed->save();
-//     }
-//   }
 }
 /**
  * Implements hook_theme().
