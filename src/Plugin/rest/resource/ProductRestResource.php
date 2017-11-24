@@ -89,7 +89,7 @@ class ProductRestResource extends ResourceBase {
 
     // You must to implement the logic of your REST Resource here.
     // Use current user after pass authentication to validate access.
-    if (!$this->currentUser->hasPermission('access content')) {
+    if (!$this->currentUser->hasPermission('restful get product_rest_resource')) {
       throw new AccessDeniedHttpException();
     }
     $id = trim($id);
@@ -145,19 +145,24 @@ class ProductRestResource extends ResourceBase {
 
     // You must to implement the logic of your REST Resource here.
     // Use current user after pass authentication to validate access.
-    if (!$this->currentUser->hasPermission('access content')) {
+    if (!$this->currentUser->hasPermission('restful post product_rest_resource')) {
        throw new AccessDeniedHttpException();
     }
-      $name = $data["name"];
-      $description = $data["description"];
-      $price = $data["price"];
-      $entity = Products::create();
-      $entity->setName($name);
-      $entity->setDescription($description);
-      $entity->setPrice($price);
-      try {
+    $request_token = $_SERVER['HTTP_X_CSRF_TOKEN'];
+    $csrf = \Drupal::csrfToken();
+    $csrf->validate($request_token,'');
+    // if($request_token!==$csrf)
+    //   throw new AccessDeniedHttpException();
+    $name = $data["name"];
+    $description = $data["description"];
+    $price = $data["price"];
+    $entity = Products::create();
+    $entity->setName($name."lolo");
+    $entity->setDescription($description);
+    $entity->setPrice($price);
+    try {
         $entity->save();
-     }catch(EntityStorageException $ex) {
+    }catch(EntityStorageException $ex) {
       //  \Drupal::logger('product_rest_api')->error($ex);
        return new ResourceResponse(["message"=>"Problem on Entity save"],500);
     }
@@ -177,7 +182,7 @@ class ProductRestResource extends ResourceBase {
 
     // You must to implement the logic of your REST Resource here.
     // Use current user after pass authentication to validate access.
-    if (!$this->currentUser->hasPermission('access content')) {
+    if (!$this->currentUser->hasPermission('restful delete product_rest_resource')) {
       throw new AccessDeniedHttpException();
     }
     $id = trim($id);
@@ -222,7 +227,7 @@ class ProductRestResource extends ResourceBase {
 
     // You must to implement the logic of your REST Resource here.
     // Use current user after pass authentication to validate access.
-    if (!$this->currentUser->hasPermission('access content')) {
+    if (!$this->currentUser->hasPermission('restful patch product_rest_resource')) {
       throw new AccessDeniedHttpException();
     }
     $id = trim($id);
@@ -258,6 +263,10 @@ class ProductRestResource extends ResourceBase {
       $response = ["message"=>"Product Updated"];
     }
     return new ResourceResponse($response, 200);
+  }
+
+  protected function csrf_check() {
+
   }
 
 }

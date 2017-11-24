@@ -1,0 +1,10 @@
+
+product_rest_api.rest_consume_controller_hello:
+  path: '/product_rest_api/rest/test/{id}'
+  defaults:
+    _controller: '\Drupal\product_rest_api\Controller\RestConsumeController::get'
+    _title: 'restConsume'
+    id: ''
+  requirements:
+    _permission: 'access content'
+    id: '^[0-9_]+'    

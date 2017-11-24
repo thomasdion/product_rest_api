@@ -2,6 +2,8 @@ parameters:
   public.apis:
     - {name: 'awardees', url: 'http://chroniclingamerica.loc.gov/awardees.json', Accept: 'application/json'}
     - {name: 'breeds', url: 'https://dog.ceo/dog-api/', Accept: 'application/json'}
+    - {name: 'rest_api', url: 'http://localhost/test2/api/products/', Accept: 'application/hal+json', Content-Type: 'application/hal+json'}
+    - {name: 'giannis_api', url: 'http://192.168.1.175/drupal8test/testview/fields/didaskalia/search_global?_format=hal_json&tmima_id=2&teacher_afm=057339344&aithousa_id=2&dateend=1509364970&datebegin=1509364970', Accept: 'application/hal+json'}
 services:
   product_rest_api.rest_consume:
     class: Drupal\product_rest_api\Service\RestConsumeService

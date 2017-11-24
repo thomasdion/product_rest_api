@@ -5,3 +5,4 @@ Module provides a rest API with CRUD operations on a custom entity named product
 Also we periodically consume a public API "http://chroniclingamerica.loc.gov/newspapers.json"
 checking the "Last-Modified" headers and refresh and store our data locally on award entity.
 Lastly we provide another rest endopoint with only GET method with the data consumed.
+Implemented a Service which loads different endpoints public or local and later consuming them.

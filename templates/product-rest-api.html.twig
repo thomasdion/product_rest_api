@@ -1,1 +1,12 @@
 <!-- Add you custom twig html here -->
+<div>
+  <h1> {{title}}</h1>
+  <h2>Products</h2>
+  <ul>
+  {% for product in products %}
+      <li>name: {{product.name}}</li>
+      <li>price: {{product.price}}</li>
+      <li>description: {{product.description}}</li>
+  {% endfor %}
+</ul>
+</div>
