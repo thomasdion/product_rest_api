@@ -1,8 +1,15 @@
 <?php
+/**
+* @file
+ * Contains RestConsumeService.
+ */
 
 namespace Drupal\product_rest_api\Service;
 use Drupal\Core\DependencyInjection\Compiler\GuzzleMiddlewarePass;
-use Drupal\Core\Session\AccountInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+// use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Session\AccountProxyInterface;
+
 /**
  * Class RestConsumeService.
  */
@@ -11,12 +18,13 @@ class RestConsumeService  {
   /**
    * The current user object.
    *
-   * @var \Drupal\Core\Session\AccountInterface
+   * @var \Drupal\Core\Session\AccountProxyInterface
    */
-  // protected $currentUser;
+   protected $currentUser;
 
   /**
-   * For locals' api  product retrieval.
+   * For locals' api  product retrieval. Though it could be used
+   *in any endpoid we want
    *
    */
    public $id=NULL;
@@ -31,10 +39,10 @@ class RestConsumeService  {
    * Constructs a new RestConsumeService object.
    *   The api list provided by services.yml.
    */
-  public function __construct($apis) {
+  public function __construct($apis, AccountProxyInterface $current_user) {
 
        $this->apis = $apis;
-    // $this->current_user = $current_user;
+       $this->currentUser = $current_user;
   }
 
   protected function getApi(string $api_name){
@@ -70,9 +78,30 @@ class RestConsumeService  {
     return $api;
   }
 
+  public function check_access($api_name) {
+
+    //for each endpoint we should set and check different permissions
+    $permission='access content';
+    switch($api_name) {
+      case 'awardees':
+      $permission='access content';
+      break;
+      case 'breeds':
+      $permission='access content';
+      break;
+      case 'rest_api':
+      $permission='restful get product_rest_resource';
+      break;
+    }
+    // if (!$this->currentUser->hasPermission('restful get product_rest_resource')) {
+    if (!$this->currentUser->hasPermission($permission)) {      
+      throw new AccessDeniedHttpException();
+    }
+  }
+
   public function consume(string $api_name) {
 
-
+    $this->check_access('rest_api');
     $api = $this->getApi($api_name);
     $client   = \Drupal::httpClient();
     $response = $client->get($api['endpoint'], $api['headers']);

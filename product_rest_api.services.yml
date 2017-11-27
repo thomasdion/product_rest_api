@@ -7,4 +7,4 @@ parameters:
 services:
   product_rest_api.rest_consume:
     class: Drupal\product_rest_api\Service\RestConsumeService
-    arguments: ["%public.apis%"]
+    arguments: ["%public.apis%", '@current_user']

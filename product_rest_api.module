@@ -36,18 +36,23 @@ function product_rest_api_cron() {
   //load session varables
    $tempstore = \Drupal::service('user.private_tempstore')->get('product_rest_api');
    try {
+      //here we load our custom service
       $rest = \Drupal::service('product_rest_api.rest_consume');
+      //we chose the puplic or internal endpoind
       $response = $rest->consume('awardees');
       $status =  $response->getStatusCode();
       $reason =  $response->getReasonPhrase();
       $con_type = $response->getHeader('Content-Type');
-      if($con_type!='application/json')
-          throw new AccessDeniedHttpException("406 Not Acceptable");
+      if($con_type!='application/json' && $con_type!='application/hal+json') {
+         throw new AccessDenniedException("Not Acceptable",NULL, 406);
+       }
       $modified = $response->getHeader('Last-Modified');
       //read session variable $last_modified
       $last_modified = $tempstore->get('last_modified');
       //set new value in session variable
       $tempstore->set('last_modified', $modified);
+      //will be later implemented  dynamically in a new function
+      //for different endities
       if($status==200 && $reason=="OK" && ($modified >= $last_modified)) {
          $current_user = \Drupal::currentUser()->id();
          // // Refresh entity by deleting all entries and*
