@@ -106,7 +106,6 @@ class ConsumeRestRersource extends ResourceBase {
      // $output = $this->serializer->serialize($products, 'json');
      // $response = new ResourceResponse($output);
      // $response->addCacheableDependency($output);
-     // $response = ['message' => 'Hello, this is a rest service'];
      $response = new ResourceResponse($awards);
      $response->addCacheableDependency($awards);
      return $response;

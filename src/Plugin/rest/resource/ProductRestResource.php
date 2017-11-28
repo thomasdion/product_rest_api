@@ -5,12 +5,15 @@ namespace Drupal\product_rest_api\Plugin\rest\resource;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\rest\Plugin\ResourceBase;
 use Drupal\rest\ResourceResponse;
+use Drupal\Core\Database\Driver\mysql\Connection;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Serializer\Exception\InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Drupal\Core\Access\CsrfTokenGenerator;
 use Drupal\products\Entity\Products;
+use Drupal\subproduct\Entity\SubProduct;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\rest\ModifiedResourceResponse;
 
@@ -37,6 +40,13 @@ class ProductRestResource extends ResourceBase {
   protected $currentUser;
 
   /**
+   * Drupal\Core\Database\Driver\mysql\Connection definition.
+   *
+   * @var \Drupal\Core\Database\Driver\mysql\Connection
+   */
+  protected $connection;
+
+  /**
    * Constructs a new ProductRestResource object.
    *
    * @param array $configuration
@@ -58,10 +68,12 @@ class ProductRestResource extends ResourceBase {
     $plugin_definition,
     array $serializer_formats,
     LoggerInterface $logger,
-    AccountProxyInterface $current_user) {
+    AccountProxyInterface $current_user,
+    Connection $database) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $serializer_formats, $logger);
 
     $this->currentUser = $current_user;
+    $this->connection = $database;
   }
 
   /**
@@ -74,7 +86,8 @@ class ProductRestResource extends ResourceBase {
       $plugin_definition,
       $container->getParameter('serializer.formats'),
       $container->get('logger.factory')->get('product_rest_api'),
-      $container->get('current_user')
+      $container->get('current_user'),
+      $container->get('database')
     );
   }
 
@@ -91,7 +104,7 @@ class ProductRestResource extends ResourceBase {
     // You must to implement the logic of your REST Resource here.
     // Use current user after pass authentication to validate access.
     if (!$this->currentUser->hasPermission('restful get product_rest_resource')) {
-      throw new AccessDeniedHttpException();
+      throw new AccessDeniedHttpException('You are not authorized!', NULL, 403);
     }
     $id = trim($id);
     if(!empty($id)) { //For single Product
@@ -102,6 +115,7 @@ class ProductRestResource extends ResourceBase {
         $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
         $entities = $storage_handler->loadMultiple($ent_ret);
       }catch( InvalidPluginDefinitionException $e) {
+        \Drupal::logger('product_rest_api')->error("Error on entity load:".$e->getMessage());
         return new ResourceResponse(["message"=>"Problem on load entity"]);
       }
     }else{ // Load all Products
@@ -133,8 +147,7 @@ class ProductRestResource extends ResourceBase {
    * Responds to POST requests.
    * Insert a new Product Entity.
    *
-   * @param $name
-   * @param $description
+   * @param $data
    * @return \Drupal\rest\ResourceResponse
    *
    * @throws \Symfony\Component\HttpKernel\Exception\HttpException
@@ -148,10 +161,11 @@ class ProductRestResource extends ResourceBase {
     // Use current user after pass authentication to validate access.
     if (!$this->currentUser->hasPermission('restful post product_rest_resource')) {
       \Drupal::logger('product_rest_api')->notice("Unothorized access attemp.User id: ".$this->currentUser->id);
-       throw new AccessDeniedHttpException(NULL, NULL, 403);
+      throw new AccessDeniedHttpException('You are not authorized!', NULL, 403);
     }
     $con_type = $_SERVER['CONTENT_TYPE'];
     if($con_type!='application/json' && $con_type!='application/hal+json') {
+      \Drupal::logger('product_rest_api')->notice("Not supported format");
        throw new AccessDenniedException("Not Acceptable",NULL, 406);
      }
     $request_token = $_SERVER['HTTP_X_CSRF_TOKEN'];
@@ -160,18 +174,30 @@ class ProductRestResource extends ResourceBase {
     // if($csrf->validate($request_token,'')==FALSE)
     // if($request_token!==$csrf)
       // throw new AccessDeniedHttpException('Access Denied', NULL, 403);
-    $name = $data["name"];
-    $description = $data["description"];
-    $price = $data["price"];
-    $entity = Products::create();
-    $entity->setName($name);
-    $entity->setDescription($description);
-    $entity->setPrice($price);
+
+    /*We should later typehint properties and throw exceptions*/
+    // $name = $data["name"];
+    // $description = $data["description"];
+    // $price = $data["price"];
+    // $entity = Products::create();
+    // $entity->setName($name);
+    // $entity->setDescription($description);
+    // $entity->setPrice($price);
     try {
-        $entity->save();
+        $this->store_products($data);
+        // $entity->save();
+    }catch(NotFoundHttpException $ex) {
+      \Drupal::logger('product_rest_api')->notice("Product Not Found:".$ex->getMessage());
+      return new ResourceResponse(["message"=>"Product not Found"], 404);
     }catch(EntityStorageException $ex) {
-       \Drupal::logger('product_rest_api')->error($ex);
-       return new ResourceResponse(["message"=>"Internal Service Error"],500);
+      \Drupal::logger('product_rest_api')->error($ex);
+      return new ResourceResponse(["message"=>"Internal Service Error"],500);
+    }catch(InvalidArgumentException $ex) {
+      \Drupal::logger('product_rest_api')->warning("Transaction Rollback:".$ex->getMessage());
+      return new ResourceResponse(["message"=>"Problem on insert data"], 400);
+    }catch(Exception $ex) {
+      \Drupal::logger('product_rest_api')->error($ex);
+      return new ResourceResponse(["message"=>"Internal Service Error"],500);
     }
     $response = ["message"=>"New product added"];
     return new ResourceResponse($response, 201);
@@ -191,7 +217,7 @@ class ProductRestResource extends ResourceBase {
     // Use current user after pass authentication to validate access.
     if (!$this->currentUser->hasPermission('restful delete product_rest_resource')) {
       // return new ModifiedResourceResponse(NULL, 403);
-      throw new AccessDeniedHttpException();
+      throw new AccessDeniedHttpException('You are not authorized!', NULL, 403);
     }
     $id = trim($id);
     // $response = ["message"=>"Product with doesnt exist"];
@@ -273,6 +299,50 @@ class ProductRestResource extends ResourceBase {
       $response = ["message"=>"Product Updated"];
     }
     return new ResourceResponse($response, 200);
+  }
+
+  protected function store_products($data ) {
+
+    $productId = trim($data["id"]);
+    $subproducts = $data["subproducts"];
+
+    // $database = \Drupal::database();
+    $transaction = $this->connection->startTransaction();
+    try {
+      if(!empty($productId)) { //For single Product
+        $ent_ret = \Drupal::entityQuery('products','AND')
+                  ->condition('id', $productId)
+                  ->execute();
+        $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
+        $product = $storage_handler->loadMultiple($ent_ret);
+      } else {
+        throw new NotFoundHttpException('No product selected');
+      }
+      if(empty($product))
+        throw new NotFoundHttpException('No product category found');
+      foreach($subproducts as $spdata) {
+        $sname = trim($spdata["name"]);
+        $sdescription = trim($spdata["description"]);
+        $sprice = trim($spdata["price"]);
+        if($sname==NULL || $sdescription==NULL || $sprice==NULL)
+          throw new InvalidArgumentException('Insufficient data');
+        $subProduct = SubProduct::create();
+        $subProduct->setProductId($productId);
+        $subProduct->setName($sname);
+        $subProduct->setDescription($sdescription);
+        $subProduct->setPrice($sprice);
+        $subProduct->save();
+      }
+    }
+    catch(NotFoundHttpException $ex) {
+      throw new NotFoundHttpException($ex);
+    }catch(InvalidArgumentException $ex) {
+      $transaction->rollBack();
+      throw new InvalidArgumentException($ex);
+    }catch(Exception $ex) {
+      $transaction->rollBack();
+      throw new InvalidArgumentException($ex->getMessage());
+    }
   }
 
   protected function csrf_check() {
