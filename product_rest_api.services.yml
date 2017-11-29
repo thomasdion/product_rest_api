@@ -8,3 +8,6 @@ services:
   product_rest_api.rest_consume:
     class: Drupal\product_rest_api\Service\RestConsumeService
     arguments: ["%public.apis%", '@current_user']
+  product_rest_api.entity_db:
+    class: Drupal\product_rest_api\Service\EntityService
+    arguments: ['@current_user','@database']

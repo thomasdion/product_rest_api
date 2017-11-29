@@ -8,7 +8,7 @@ namespace Drupal\product_rest_api\Service;
 use Drupal\Core\DependencyInjection\Compiler\GuzzleMiddlewarePass;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 // use Drupal\Core\Session\AccountInterface;
-use Drupal\Core\Session\AccountProxyInterface;
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Class RestConsumeService.
@@ -18,7 +18,7 @@ class RestConsumeService  {
   /**
    * The current user object.
    *
-   * @var \Drupal\Core\Session\AccountProxyInterface
+   * @var \Drupal\Core\Session\AccountInterface
    */
    protected $currentUser;
 
@@ -39,7 +39,7 @@ class RestConsumeService  {
    * Constructs a new RestConsumeService object.
    *   The api list provided by services.yml.
    */
-  public function __construct($apis, AccountProxyInterface $current_user) {
+  public function __construct($apis, AccountInterface $current_user) {
 
        $this->apis = $apis;
        $this->currentUser = $current_user;
@@ -64,7 +64,6 @@ class RestConsumeService  {
         break;
         case 'rest_api': //our endpoint
           $api['endpoint'] = $this->apis[2]['url'].$this->id.'?_format=hal_json';
-          // $api['endpoint'] = 'http://192.168.1.175/drupal8test/testview/fields/didaskalia/search_global?_format=hal_json&tmima_id=2&teacher_afm=057339344&aithousa_id=2&dateend=1509364970&datebegin=1509364970';
           $credentials = base64_encode('test2:1981');
           $api['headers'] = [
                 'Accept'  => $this->apis[2]['Accept'],
@@ -94,14 +93,14 @@ class RestConsumeService  {
       break;
     }
     // if (!$this->currentUser->hasPermission('restful get product_rest_resource')) {
-    if (!$this->currentUser->hasPermission($permission)) {      
-      throw new AccessDeniedHttpException();
+    if (!$this->currentUser->hasPermission($permission)) {
+      throw new AccessDeniedHttpException("Permission denied:RestConsumeService:check_access",null,401);
     }
   }
 
   public function consume(string $api_name) {
 
-    $this->check_access('rest_api');
+    $this->check_access($api_name);
     $api = $this->getApi($api_name);
     $client   = \Drupal::httpClient();
     $response = $client->get($api['endpoint'], $api['headers']);

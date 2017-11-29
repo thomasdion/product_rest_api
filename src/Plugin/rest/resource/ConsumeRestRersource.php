@@ -101,7 +101,8 @@ class ConsumeRestRersource extends ResourceBase {
         );
        }
      } else {
-         throw new NotFoundHttpException('No products found');
+         return new ResourceResponse(["message"=>"Not entities found"], 404);
+        //  throw new NotFoundHttpException('No products found');
      }
      // $output = $this->serializer->serialize($products, 'json');
      // $response = new ResourceResponse($output);

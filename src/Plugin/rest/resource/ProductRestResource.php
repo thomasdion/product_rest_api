@@ -2,10 +2,9 @@
 
 namespace Drupal\product_rest_api\Plugin\rest\resource;
 
-use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\rest\Plugin\ResourceBase;
 use Drupal\rest\ResourceResponse;
-use Drupal\Core\Database\Driver\mysql\Connection;
+use Drupal\Core\Access\CsrfRequestHeaderAccessCheck;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -14,6 +13,7 @@ use Psr\Log\LoggerInterface;
 use Drupal\Core\Access\CsrfTokenGenerator;
 use Drupal\products\Entity\Products;
 use Drupal\subproduct\Entity\SubProduct;
+use Drupal\product_rest_api\Service\EntityService;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\rest\ModifiedResourceResponse;
 
@@ -33,18 +33,18 @@ use Drupal\rest\ModifiedResourceResponse;
 class ProductRestResource extends ResourceBase {
 
   /**
-   * A current user instance.
+   *  Drupal\Core\Access\CsrfRequestHeaderAccessCheck definition.
    *
-   * @var \Drupal\Core\Session\AccountProxyInterface
+   * @var \Drupal\Core\Access\CsrfRequestHeaderAccessCheck
    */
-  protected $currentUser;
+  protected $check_csrf;
 
   /**
-   * Drupal\Core\Database\Driver\mysql\Connection definition.
+   *  Drupal\product_rest_api\EntityService definition.
    *
-   * @var \Drupal\Core\Database\Driver\mysql\Connection
+   * @var \Drupal\product_rest_api\EntityService
    */
-  protected $connection;
+  protected $entityDB;
 
   /**
    * Constructs a new ProductRestResource object.
@@ -61,6 +61,8 @@ class ProductRestResource extends ResourceBase {
    *   A logger instance.
    * @param \Drupal\Core\Session\AccountProxyInterface $current_user
    *   A current user instance.
+   * @param \Drupal\Core\Database\Driver\mysql\Connection $database
+   *   A current mysql Connection instance.
    */
   public function __construct(
     array $configuration,
@@ -68,12 +70,12 @@ class ProductRestResource extends ResourceBase {
     $plugin_definition,
     array $serializer_formats,
     LoggerInterface $logger,
-    AccountProxyInterface $current_user,
-    Connection $database) {
+    CsrfRequestHeaderAccessCheck $access_check_header_csrf,
+    EntityService $product_rest_api_entity_db) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $serializer_formats, $logger);
 
-    $this->currentUser = $current_user;
-    $this->connection = $database;
+    $this->check_csrf = $access_check_header_csrf;
+    $this->entityDB = $product_rest_api_entity_db;
   }
 
   /**
@@ -86,8 +88,8 @@ class ProductRestResource extends ResourceBase {
       $plugin_definition,
       $container->getParameter('serializer.formats'),
       $container->get('logger.factory')->get('product_rest_api'),
-      $container->get('current_user'),
-      $container->get('database')
+      $container->get('access_check.header.csrf'),
+      $container->get('product_rest_api.entity_db')
     );
   }
 
@@ -102,41 +104,36 @@ class ProductRestResource extends ResourceBase {
   public function get($id=NULL) {
 
     // You must to implement the logic of your REST Resource here.
-    // Use current user after pass authentication to validate access.
-    if (!$this->currentUser->hasPermission('restful get product_rest_resource')) {
-      throw new AccessDeniedHttpException('You are not authorized!', NULL, 403);
-    }
-    $id = trim($id);
-    if(!empty($id)) { //For single Product
-      $ent_ret = \Drupal::entityQuery('products','AND')
-                ->condition('id', $id)
-                ->execute();
-      try {
-        $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
-        $entities = $storage_handler->loadMultiple($ent_ret);
-      }catch( InvalidPluginDefinitionException $e) {
-        \Drupal::logger('product_rest_api')->error("Error on entity load:".$e->getMessage());
-        return new ResourceResponse(["message"=>"Problem on load entity"]);
-      }
-    }else{ // Load all Products
-      $entities = Products::loadMultiple();
-      $products = array();
-      }
-    if(!empty($entities)) {
-      foreach($entities as $entity) {
-        $id = $entity->id();
-        $name = t($entity->getName());
-        $description = t($entity->getDescription());
-        $price = $entity->getPrice();
-        $products[$id] = array(
-          "name" => $name,
-          "description" => $description,
-          "price" => $price
-        );
-      }
-    } else {
+    $products = [];
+    try {
+      $this->entityDB->setId($id);
+      $entities = $this->entityDB->get_entity();
+      if(empty($entities))
         throw new NotFoundHttpException('No products found');
-        // return new ResourceResponse(["message"=>"No entries found!"]);
+      else {
+        foreach($entities as $entity) {
+          $id = $entity->id();
+          $name = t($entity->getName());
+          $description = t($entity->getDescription());
+          $price = $entity->getPrice();
+          $products[$id] = array(
+            "name" => $name,
+            "description" => $description,
+            "price" => $price
+          );
+        }
+      }
+    }catch( InvalidPluginDefinitionException $e) {
+      // \Drupal::logger('product_rest_api')->error("Error on entity load:".$e->getMessage());
+      $this->logger->error("Error on entity load:".$e->getMessage());
+      return new ResourceResponse(["message"=>"Problem on load entity"], 500);
+    }catch( NotFoundHttpException $e) {
+      // \Drupal::logger('product_rest_api')->notice("Unsuccesfull retrieval:".$e->getMessage());
+      $this->logger->notice("Unsuccesfull retrieval:".$e->getMessage());
+      return new ResourceResponse(["message"=>$e->getMessage()], 404);
+    }catch( AccessDeniedHttpException $e) {
+      $this->logger->notice($e->getMessage());
+      return new ResourceResponse(["message"=>"You are not Authorized!"], 403);
     }
     $response = new ResourceResponse($products);
     $response->addCacheableDependency($products);
@@ -153,50 +150,33 @@ class ProductRestResource extends ResourceBase {
    * @throws \Symfony\Component\HttpKernel\Exception\HttpException
    *   Throws exception expected.
    */
-    // public function post(array $data=[]) {
-    //  public function post($data, $node_type) {
-     public function post($data) {
+    public function post($data) {
 
     // You must to implement the logic of your REST Resource here.
-    // Use current user after pass authentication to validate access.
-    if (!$this->currentUser->hasPermission('restful post product_rest_resource')) {
-      \Drupal::logger('product_rest_api')->notice("Unothorized access attemp.User id: ".$this->currentUser->id);
-      throw new AccessDeniedHttpException('You are not authorized!', NULL, 403);
-    }
-    $con_type = $_SERVER['CONTENT_TYPE'];
-    if($con_type!='application/json' && $con_type!='application/hal+json') {
-      \Drupal::logger('product_rest_api')->notice("Not supported format");
-       throw new AccessDenniedException("Not Acceptable",NULL, 406);
-     }
-    $request_token = $_SERVER['HTTP_X_CSRF_TOKEN'];
-    $csrf = \Drupal::csrfToken();
-    // $csrf = new CsrfTokenGenerator();
-    // if($csrf->validate($request_token,'')==FALSE)
-    // if($request_token!==$csrf)
-      // throw new AccessDeniedHttpException('Access Denied', NULL, 403);
-
-    /*We should later typehint properties and throw exceptions*/
-    // $name = $data["name"];
-    // $description = $data["description"];
-    // $price = $data["price"];
-    // $entity = Products::create();
-    // $entity->setName($name);
-    // $entity->setDescription($description);
-    // $entity->setPrice($price);
     try {
-        $this->store_products($data);
-        // $entity->save();
+      $con_type = $_SERVER['CONTENT_TYPE'];
+      if($con_type!='application/json' && $con_type!='application/hal+json')
+         throw new AccessDeniedHttpException("Not Not supported format",NULL, 406);
+      // $request_token = $_SERVER['HTTP_X_CSRF_TOKEN'];
+      // $request = \Drupal::request();
+      // $this->check_csrf->access($request, $this->currentUser);
+      $this->entityDB->setId($data["id"]);
+      $entities = $this->entityDB->store_entity($data);
+      // $this->store_products($data);
+    }catch(AccessDeniedHttpException $ex) {
+      $this->logger->notice($ex->getMessage());
+      return new ResourceResponse(["message"=>$ex->getMessage()], $ex->getCode());
     }catch(NotFoundHttpException $ex) {
-      \Drupal::logger('product_rest_api')->notice("Product Not Found:".$ex->getMessage());
+      $this->logger->notice("Product Not Found:".$ex->getMessage());
       return new ResourceResponse(["message"=>"Product not Found"], 404);
     }catch(EntityStorageException $ex) {
-      \Drupal::logger('product_rest_api')->error($ex);
+      $this->logger->error($ex);
       return new ResourceResponse(["message"=>"Internal Service Error"],500);
     }catch(InvalidArgumentException $ex) {
-      \Drupal::logger('product_rest_api')->warning("Transaction Rollback:".$ex->getMessage());
+      $this->logger->warning("Transaction Rollback:".$ex->getMessage());
       return new ResourceResponse(["message"=>"Problem on insert data"], 400);
     }catch(Exception $ex) {
-      \Drupal::logger('product_rest_api')->error($ex);
+      $this->logger->error($ex);
       return new ResourceResponse(["message"=>"Internal Service Error"],500);
     }
     $response = ["message"=>"New product added"];
@@ -214,37 +194,23 @@ class ProductRestResource extends ResourceBase {
   public function delete($id=NULL) {
 
     // You must to implement the logic of your REST Resource here.
-    // Use current user after pass authentication to validate access.
-    if (!$this->currentUser->hasPermission('restful delete product_rest_resource')) {
-      // return new ModifiedResourceResponse(NULL, 403);
-      throw new AccessDeniedHttpException('You are not authorized!', NULL, 403);
+    try {
+      $this->entityDB->setId($id);
+      $this->entityDB->delete_entity();
+    }catch( InvalidPluginDefinitionException $ex) {
+      $this->logger->error($ex);
+      return new ModifiedResourceResponse(NULL, 500);
+    }catch ( EntityStorageException $ex ) {
+      $this->logger->error($ex);
+      return new ModifiedResourceResponse(NULL, 500);
+    }catch( AccessDeniedHttpException $e) {
+      $this->logger->notice($e->getMessage());
+      return new ModifiedResourceResponse(NULL, 403);
+    }catch( NotFoundHttpException $e) {
+      $this->logger->notice($e->getMessage());
+      return new ModifiedResourceResponse(NULL, 404);
     }
-    $id = trim($id);
-    // $response = ["message"=>"Product with doesnt exist"];
-    if(!empty($id)) {
-      $current_user = \Drupal::currentUser()->id();
-      $ent_ret = \Drupal::entityQuery('products','AND')
-                ->condition('user_id', $current_user)
-                ->condition('id', $id)
-                ->execute();
-      if(empty($ent_ret)) {
-          \Drupal::logger('product_rest_api')->notice("Product with id:".$id." not found");
-          //  throw new NotFoundHttpException(NULL, 404);
-           return new ModifiedResourceResponse(NULL, 404);
-        }
-      try {
-        $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
-        $entities = $storage_handler->loadMultiple($ent_ret);
-        $storage_handler->delete($entities);
-        // $response = ["message"=>"Product with id was deleted!"];
-    } catch( InvalidPluginDefinitionException $ex) {
-        \Drupal::logger('product_rest_api')->error($ex);
-        return new ResourceResponse(["message"=>"Internal Service Error"], 500);
-    } catch ( EntityStorageException $ex ) {
-        \Drupal::logger('product_rest_api')->error($ex);
-        return new ResourceResponse(["message"=>"Internal Service Error"], 500);
-    }
-    }
+
     return new ModifiedResourceResponse(NULL, 204);
   }
 
@@ -259,94 +225,35 @@ class ProductRestResource extends ResourceBase {
   public function patch($id=NULL, $data=NULL) {
 
     // You must to implement the logic of your REST Resource here.
-    // Use current user after pass authentication to validate access.
-    if (!$this->currentUser->hasPermission('restful patch product_rest_resource')) {
-      throw new AccessDeniedHttpException('You are not authorized!', NULL, 403);
+    try {
+      $con_type = $_SERVER['CONTENT_TYPE'];
+      if($con_type!='application/json' && $con_type!='application/hal+json')
+        throw new AccessDeniedHttpException("Not Acceptable",NULL, 406);
+      $this->entityDB->setId($id);
+      $this->entityDB->update_entity($data);
+    }catch(InvalidPluginDefinitionException  $ex) {
+      $this->logger->error($ex);
+      return new ResourceResponse(["message"=>"Internal Service Error"], 500);
+    }catch(EntityStorageException $ex) {
+      $this->logger->error($ex);
+      return new ResourceResponse(["message"=>"Internal Service Error"], 500);
+    }catch( AccessDeniedHttpException $e) {
+      $this->logger->notice($ex->getMessage()."Code:".$e->getCode());      
+      return new ResourceResponse(["message"=>$e->getMessage()], $e->getCode());
+    }catch( NotFoundHttpException $e) {
+      $this->logger->notice($e->getMessage());
+      return new ResourceResponse(["message"=>"Product not Found"], 404);
     }
-    if($con_type!='application/json' && $con_type!='application/hal+json') {
-       throw new AccessDenniedException("Not Acceptable",NULL, 406);
-    }
-    $id = trim($id);
-    $response = ["message"=>"Product not found"];
-    if(!empty($id)) {
-      $current_user=\Drupal::currentUser()->id();
-      $ent_ret = \Drupal::entityQuery('products', 'AND')
-        ->condition('user_id' , $current_user)
-        ->condition('id', $id)
-        ->execute();
-      if(empty($ent_ret)) {
-          \Drupal::logger('product_rest_api')->notice("Product with id:".$id." not found");
-          // throw new NotFoundHttpException("Product not found");
-          return new ResourceResponse(["message"=>"Product not Found"], 404);
-      }
-      try {
-        $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
-        $entity = $storage_handler->loadMultiple($ent_ret);
-        $product = $entity[$id];
-        $product->setName($data["name"])
-          ->setDescription($data["description"])
-          ->setPrice($data["price"]);
-        $product->save();
-      }
-      catch(InvalidPluginDefinitionException  $ex) {
-        \Drupal::logger('product_rest_api')->error($ex);
-        return new ResourceResponse(["message"=>"Internal Service Error"], 500);
-      }
-      catch(EntityStorageException $ex) {
-        \Drupal::logger('product_rest_api')->error($ex);
-        return new ResourceResponse(["message"=>"Internal Service Error"], 500);
-      }
-      $response = ["message"=>"Product Updated"];
-    }
+    $response = ["message"=>"Product Updated"];
     return new ResourceResponse($response, 200);
   }
 
-  protected function store_products($data ) {
-
-    $productId = trim($data["id"]);
-    $subproducts = $data["subproducts"];
-
-    // $database = \Drupal::database();
-    $transaction = $this->connection->startTransaction();
-    try {
-      if(!empty($productId)) { //For single Product
-        $ent_ret = \Drupal::entityQuery('products','AND')
-                  ->condition('id', $productId)
-                  ->execute();
-        $storage_handler = \Drupal::entityTypeManager()->getStorage('products');
-        $product = $storage_handler->loadMultiple($ent_ret);
-      } else {
-        throw new NotFoundHttpException('No product selected');
-      }
-      if(empty($product))
-        throw new NotFoundHttpException('No product category found');
-      foreach($subproducts as $spdata) {
-        $sname = trim($spdata["name"]);
-        $sdescription = trim($spdata["description"]);
-        $sprice = trim($spdata["price"]);
-        if($sname==NULL || $sdescription==NULL || $sprice==NULL)
-          throw new InvalidArgumentException('Insufficient data');
-        $subProduct = SubProduct::create();
-        $subProduct->setProductId($productId);
-        $subProduct->setName($sname);
-        $subProduct->setDescription($sdescription);
-        $subProduct->setPrice($sprice);
-        $subProduct->save();
-      }
-    }
-    catch(NotFoundHttpException $ex) {
-      throw new NotFoundHttpException($ex);
-    }catch(InvalidArgumentException $ex) {
-      $transaction->rollBack();
-      throw new InvalidArgumentException($ex);
-    }catch(Exception $ex) {
-      $transaction->rollBack();
-      throw new InvalidArgumentException($ex->getMessage());
-    }
-  }
-
-  protected function csrf_check() {
-
-  }
+  // public function csrf_check($request_token) {
+  //
+  //   $this->check_csrf->access($current_user);
+  //   return true;
+    // if($request_token!==$csrf)
+        //return false;
+  // }
 
 }

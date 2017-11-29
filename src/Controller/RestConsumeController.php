@@ -30,10 +30,12 @@ class RestConsumeController extends ControllerBase {
   protected $rest;
 
   /**
+   * Constructs a new RestConsumeController object.
    * Drupal\Core\Session\AccountProxy definition.
    * @param \Drupal\Core\Session\AccountInterface $current_user
+   * A current user instance.
    * @param \Drupal\product_rest_api\Service\RestConsumeService $rest_response
-   *   A current user instance.
+   *
    */
   public function __construct(AccountInterface $current_user, RestConsumeService $product_rest_api_rest_consume) {
     $this->currentUser = $current_user;

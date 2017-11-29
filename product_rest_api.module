@@ -44,7 +44,7 @@ function product_rest_api_cron() {
       $reason =  $response->getReasonPhrase();
       $con_type = $response->getHeader('Content-Type');
       if($con_type!='application/json' && $con_type!='application/hal+json') {
-         throw new AccessDenniedException("Not Acceptable",NULL, 406);
+         throw new AccessDeniedHttpException("Not Acceptable",NULL, 406);
        }
       $modified = $response->getHeader('Last-Modified');
       //read session variable $last_modified
@@ -53,7 +53,7 @@ function product_rest_api_cron() {
       $tempstore->set('last_modified', $modified);
       //will be later implemented  dynamically in a new function
       //for different endities
-      if($status==200 && $reason=="OK" && ($modified >= $last_modified)) {
+      if($status==200 && $reason=="OK" && ($modified > $last_modified)) {
          $current_user = \Drupal::currentUser()->id();
          // // Refresh entity by deleting all entries and*
          AwardEntity::deleteAll($current_user);
@@ -63,14 +63,13 @@ function product_rest_api_cron() {
       }
       $tempstore->set('last_modifie', $modified);
     }catch(AccessDeniedHttpException $ex) {
-     \Drupal::logger('product_rest_api')->warning($ex);
+     \Drupal::logger('product_rest_api')->warning($ex->getMessage());
     }catch(RequestException $ex) {
-     \Drupal::logger('product_rest_api')->error($ex);
-   }catch(InvalidArgumentException $ex) {
-     \Drupal::logger('product_rest_api')->error($ex);
-   }
-   catch(EntityStorageException $ex) {
-     \Drupal::logger('product_rest_api')->error($ex);
+     \Drupal::logger('product_rest_api')->error($ex->getMessage());
+    }catch(InvalidArgumentException $ex) {
+     \Drupal::logger('product_rest_api')->error($ex->getMessage());
+    }catch(EntityStorageException $ex) {
+     \Drupal::logger('product_rest_api')->error($ex->getMessage());
    }
 }
 /**
