@@ -4,7 +4,8 @@ product_rest_api.rest_consume_controller_hello:
   defaults:
     _controller: '\Drupal\product_rest_api\Controller\RestConsumeController::get'
     _title: 'restConsume'
-    id: ''
+    id: ' '
+    api: rest_api
   requirements:
     _permission: 'access content'
-    id: '^[0-9_]+'    
+    id: '^[0-9_]+'

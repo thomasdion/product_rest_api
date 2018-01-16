@@ -6,9 +6,9 @@
 
 namespace Drupal\product_rest_api\Service;
 use Drupal\Core\DependencyInjection\Compiler\GuzzleMiddlewarePass;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 // use Drupal\Core\Session\AccountInterface;
-use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Session\AccountProxyInterface;
 
 /**
  * Class RestConsumeService.
@@ -18,7 +18,7 @@ class RestConsumeService  {
   /**
    * The current user object.
    *
-   * @var \Drupal\Core\Session\AccountInterface
+   * @var \Drupal\Core\Session\AccountProxyInterface
    */
    protected $currentUser;
 
@@ -39,7 +39,7 @@ class RestConsumeService  {
    * Constructs a new RestConsumeService object.
    *   The api list provided by services.yml.
    */
-  public function __construct($apis, AccountInterface $current_user) {
+  public function __construct($apis, AccountProxyInterface $current_user) {
 
        $this->apis = $apis;
        $this->currentUser = $current_user;
@@ -94,7 +94,7 @@ class RestConsumeService  {
     }
     // if (!$this->currentUser->hasPermission('restful get product_rest_resource')) {
     if (!$this->currentUser->hasPermission($permission)) {
-      throw new AccessDeniedHttpException("Permission denied:RestConsumeService:check_access",null,401);
+      throw new UnauthorizedHttpException("Permission denied:RestConsumeService:check_access",null,401);
     }
   }
 

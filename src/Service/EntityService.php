@@ -39,7 +39,7 @@ class EntityService {
   /**
   * Constructs a new EntityService object.
   * Drupal\Core\Session\AccountProxy definition.
-  * @param \Drupal\Core\Session\AccountInterface $current_user
+  * @param \Drupal\Core\Session\AccountProxyInterface $current_user
   * A current user instance.
   * @param \Drupal\product_rest_api\Service\RestConsumeService $rest_response
   *
@@ -100,7 +100,7 @@ class EntityService {
 
   public function update_entity($data){
 
-    $this->check_access('update');
+    // $this->check_access('update');
     if(!empty($this->id)) {
       $user_id = $this->currentUser->id();
       $ent_ret = \Drupal::entityQuery('products', 'AND')
@@ -191,7 +191,7 @@ class EntityService {
     }
     // Use current user after pass authentication to validate access.
     if (!$this->currentUser->hasPermission($permission)) {
-      throw new AccessDeniedHttpException();
+      throw new AccessDeniedHttpException("Permission denied:EntityService:check_access",null,401);
     }
   }
 

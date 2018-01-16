@@ -9,7 +9,9 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\product_rest_api\Service\RestConsumeService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotAcceptableHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+
 /**
  * Class RestConsumeController.
  */
@@ -57,7 +59,7 @@ class RestConsumeController extends ControllerBase {
    *   on /test2/product_rest_api/rest/test
    *
    */
-  public function get($id=NULL) {
+  public function get($id=NULL, $api=NULL) {
     //Consume an endpoint(public or local) from our service and export it as html
 
     drupal_set_message("Dynamically Consuming Endpoints");
@@ -67,16 +69,23 @@ class RestConsumeController extends ControllerBase {
       $this->rest->setId($id);
       // $this->check_access('rest_api');
       //Here we could dynamically ask for different endpoinds
-      $response = $this->rest->consume('rest_api');
+      $response = $this->rest->consume($api);
+      // $response = $this->rest->consume('rest_api');
       $con_type = $response->getHeader('Content-Type');
       if($con_type[0]!='application/json' && $con_type[0]!='application/hal+json')
-         throw new AccessDenniedException("406 Not Acceptable");
+        throw new NotAcceptableHttpException();
+        //  throw new AccessDenniedException("406 Not Acceptable");
       $body_response = json_decode($response->getBody()->getContents(), TRUE);
       // drupal_set_message($body_response);
-    }catch(AccessDeniedHttpException $ex) {
+    }
+    catch(UnauthorizedHttpException $ex) {
       \Drupal::logger('product_rest_api')->warning($ex);
-      drupal_set_message("Access Denied");
+      drupal_set_message('Access Denied');
       $body_response = 'Access Denied';
+    }catch(NotAcceptableHttpException $ex) {
+      \Drupal::logger('product_rest_api')->warning($ex);
+      drupal_set_message("Not Acceptable format");
+      $body_response = 'Not Acceptable format';
     }catch(RequestException $ex) {
       \Drupal::logger('product_rest_api')->error($ex);
       drupal_set_message("Access Denied");

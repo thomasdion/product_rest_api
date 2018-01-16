@@ -7,6 +7,7 @@ use Drupal\rest\ResourceResponse;
 use Drupal\Core\Access\CsrfRequestHeaderAccessCheck;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotAcceptableHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Serializer\Exception\InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -156,13 +157,16 @@ class ProductRestResource extends ResourceBase {
     try {
       $con_type = $_SERVER['CONTENT_TYPE'];
       if($con_type!='application/json' && $con_type!='application/hal+json')
-         throw new AccessDeniedHttpException("Not Not supported format",NULL, 406);
+         throw new NotAcceptableHttpException();
       // $request_token = $_SERVER['HTTP_X_CSRF_TOKEN'];
       // $request = \Drupal::request();
       // $this->check_csrf->access($request, $this->currentUser);
       $this->entityDB->setId($data["id"]);
       $entities = $this->entityDB->store_entity($data);
       // $this->store_products($data);
+    }catch(NotAcceptableHttpException $ex) {
+      $this->logger->notice($ex->getMessage());
+      return new ResourceResponse(["message"=>"Not acceptable format"], 406);
     }catch(AccessDeniedHttpException $ex) {
       $this->logger->notice($ex->getMessage());
       return new ResourceResponse(["message"=>$ex->getMessage()], $ex->getCode());
@@ -226,11 +230,15 @@ class ProductRestResource extends ResourceBase {
 
     // You must to implement the logic of your REST Resource here.
     try {
+      $this->entityDB->check_access('update');
       $con_type = $_SERVER['CONTENT_TYPE'];
       if($con_type!='application/json' && $con_type!='application/hal+json')
-        throw new AccessDeniedHttpException("Not Acceptable",NULL, 406);
+        throw new NotAcceptableHttpException();
       $this->entityDB->setId($id);
       $this->entityDB->update_entity($data);
+    }catch(NotAcceptableHttpException $ex) {
+      $this->logger->notice($ex->getMessage());
+      return new ResourceResponse(["message"=>"Not acceptable format"], 406);
     }catch(InvalidPluginDefinitionException  $ex) {
       $this->logger->error($ex);
       return new ResourceResponse(["message"=>"Internal Service Error"], 500);
@@ -238,7 +246,7 @@ class ProductRestResource extends ResourceBase {
       $this->logger->error($ex);
       return new ResourceResponse(["message"=>"Internal Service Error"], 500);
     }catch( AccessDeniedHttpException $e) {
-      $this->logger->notice($ex->getMessage()."Code:".$e->getCode());      
+      $this->logger->notice($ex->getMessage()."Code:".$e->getCode());
       return new ResourceResponse(["message"=>$e->getMessage()], $e->getCode());
     }catch( NotFoundHttpException $e) {
       $this->logger->notice($e->getMessage());

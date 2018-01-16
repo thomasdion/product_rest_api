@@ -9,7 +9,7 @@ use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\product_rest_api\Controller\RestConsumeController;
 use Drupal\award\Entity\AwardEntity;
 use Drupal\award\Entity\AwardEntityInterface;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotAcceptableHttpException;
 use Drupal\award\AwardEntityAccessControlHandler;
 use Drupal\product_rest_api\Servic\RestConsumeService;
 /**
@@ -44,15 +44,13 @@ function product_rest_api_cron() {
       $reason =  $response->getReasonPhrase();
       $con_type = $response->getHeader('Content-Type');
       if($con_type!='application/json' && $con_type!='application/hal+json') {
-         throw new AccessDeniedHttpException("Not Acceptable",NULL, 406);
+         throw new NotAcceptableHttpException("Not Acceptable",NULL, 406);
        }
       $modified = $response->getHeader('Last-Modified');
       //read session variable $last_modified
       $last_modified = $tempstore->get('last_modified');
-      //set new value in session variable
-      $tempstore->set('last_modified', $modified);
-      //will be later implemented  dynamically in a new function
-      //for different endities
+      //Will be later implemented  dynamically in a new function
+      //for different endities!
       if($status==200 && $reason=="OK" && ($modified > $last_modified)) {
          $current_user = \Drupal::currentUser()->id();
          // // Refresh entity by deleting all entries and*
@@ -60,9 +58,10 @@ function product_rest_api_cron() {
         // inserting the new entities
          $data = json_decode($response->getBody()->getContents(), true);
          AwardEntity::insertAll($data);
+         //set new value in session variable
+         $tempstore->set('last_modified', $modified);
       }
-      $tempstore->set('last_modifie', $modified);
-    }catch(AccessDeniedHttpException $ex) {
+    }catch(NotAcceptableHttpException $ex) {
      \Drupal::logger('product_rest_api')->warning($ex->getMessage());
     }catch(RequestException $ex) {
      \Drupal::logger('product_rest_api')->error($ex->getMessage());
